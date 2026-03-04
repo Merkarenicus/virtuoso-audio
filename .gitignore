@@ -1,0 +1,94 @@
+# Build directories
+build/
+build-*/
+out/
+cmake-build-*/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+*.cmake.in
+_deps/
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.exe
+*.sys
+
+# JUCE artifacts
+*.jucer
+JuceLibraryCode/
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.aps
+*.sdf
+*.opensdf
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Xcode
+*.xcworkspace
+xcuserdata/
+*.xcscmblueprint
+DerivedData/
+
+# CLion / IntelliJ
+.idea/
+cmake-build-debug/
+cmake-build-release/
+
+# VSCode (keep .vscode/settings.json if it has project-specific settings)
+.vscode/launch.json
+.vscode/c_cpp_properties.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Crash / fuzz artifacts
+crash_*
+leak_*
+timeout_*
+fuzz_corpus/
+oom_*
+
+# SBOM output
+sbom/
+
+# Driver build artifacts (Windows WDK)
+drivers/windows/*.pdb
+drivers/windows/Release/
+drivers/windows/Debug/
+
+# macOS driver build
+drivers/macos/DerivedData/
+drivers/macos/build/
+
+# Legal — license receipt is gitignored for privacy but path is referenced in docs
+docs/legal/JUCE_LICENSE_RECEIPT.pdf
+
+# Log files
+logs/
+*.log
+
+# CPM download cache (optional — can be committed for reproducibility)
+# CPM_DOWNLOAD_LOCATION handled by cmake/CPM.cmake
