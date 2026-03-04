@@ -1,0 +1,112 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 24,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "windows-vs2022",
+            "displayName": "Windows x64 (Visual Studio 2022)",
+            "description": "Build with MSVC via Visual Studio 17 2022",
+            "generator": "Visual Studio 17 2022",
+            "architecture": {
+                "value": "x64",
+                "strategy": "set"
+            },
+            "binaryDir": "${sourceDir}/build/vs2022-x64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "VIRTUOSO_BUILD_TESTS": "ON",
+                "VIRTUOSO_ENABLE_ASAN": "OFF"
+            }
+        },
+        {
+            "name": "windows-ninja",
+            "displayName": "Windows x64 (Ninja + MSVC)",
+            "description": "Ninja generator — requires a VS Developer command prompt or MSVC in PATH",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/ninja-win",
+            "toolchainFile": "",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "VIRTUOSO_BUILD_TESTS": "ON",
+                "CMAKE_CXX_COMPILER": "cl.exe"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "windows-release",
+            "displayName": "Windows x64 Release (Visual Studio 2022)",
+            "inherits": "windows-vs2022",
+            "binaryDir": "${sourceDir}/build/vs2022-x64-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "VIRTUOSO_ENABLE_ASAN": "OFF"
+            }
+        },
+        {
+            "name": "macos-universal",
+            "displayName": "macOS Universal (Xcode)",
+            "generator": "Xcode",
+            "binaryDir": "${sourceDir}/build/xcode-universal",
+            "cacheVariables": {
+                "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "VIRTUOSO_BUILD_TESTS": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            }
+        },
+        {
+            "name": "linux-debug",
+            "displayName": "Linux x64 Debug (Ninja + GCC)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/linux-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "VIRTUOSO_BUILD_TESTS": "ON",
+                "VIRTUOSO_ENABLE_ASAN": "ON",
+                "VIRTUOSO_ENABLE_UBSAN": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-debug-build",
+            "configurePreset": "windows-vs2022",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-release-build",
+            "configurePreset": "windows-release",
+            "configuration": "Release"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "windows-test",
+            "configurePreset": "windows-vs2022",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "timeout": 120
+            }
+        }
+    ]
+}
