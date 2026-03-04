@@ -204,6 +204,8 @@ target_sources(VirtuosoAudio
         src/gui/components/AboutPanel.cpp
         src/gui/SystemTray.h
         src/gui/SystemTray.cpp
+        src/gui/FirstRunWizard.h
+        src/gui/FirstRunWizard.cpp
 )
 
 # ---------------------------------------------------------------------------

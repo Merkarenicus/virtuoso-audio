@@ -1,0 +1,102 @@
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2026 Virtuoso Audio Project Contributors
+;
+; VirtuosoVAD.inf — Windows Kernel Mode Virtual Audio Device
+; Based on Microsoft SysVAD sample (WDK samples repository)
+; Architecture: WaveRT port driver with a virtual endpoint that appears
+; as "Virtuoso Virtual 7.1" in the Windows Sound panel.
+;
+; Requirements:
+;   - Windows 10 22H2+ / Windows 11
+;   - EV code-signing certificate for production
+;   - WDK 10.0.26100+ for cross-platform build
+;
+; Build: msbuild VirtuosoVAD.vcxproj /p:Configuration=Release /p:Platform=x64
+; Sign:  signtool sign /v /fd SHA256 /n "Your EV Cert CN" /tr http://timestamp.digicert.com VirtuosoVAD.sys
+; Test:  devcon install VirtuosoVAD.inf Root\VirtuosoVAD   (test-signing mode only)
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = MEDIA
+ClassGUID   = {4d36e96c-e325-11ce-bfc1-08002be10318}
+Provider    = %ManufacturerName%
+CatalogFile = VirtuosoVAD.cat
+DriverVer   = 03/04/2026,1.0.0.0
+PnpLockDown = 1
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64,NTarm64
+
+[Standard.NTamd64]
+%VirtuosoVAD.DeviceDesc% = VirtuosoVAD_Device, Root\VirtuosoVAD
+
+[Standard.NTarm64]
+%VirtuosoVAD.DeviceDesc% = VirtuosoVAD_Device, Root\VirtuosoVAD
+
+; ---------------------------------------------------------------------------
+; Device install section
+; ---------------------------------------------------------------------------
+[VirtuosoVAD_Device.NT]
+Include   = ks.inf,wdmaudio.inf
+Needs     = KS.Registration,WDMAUDIO.Registration
+CopyFiles = VirtuosoVAD.CopyList
+
+[VirtuosoVAD_Device.NT.Services]
+AddService = VirtuosoVAD,0x00000002,VirtuosoVAD_Service_Install
+
+[VirtuosoVAD_Device.NT.Interfaces]
+AddInterface = %KSCATEGORY_AUDIO%,    GLOBAL, VirtuosoVAD_Interface
+AddInterface = %KSCATEGORY_RENDER%,   GLOBAL, VirtuosoVAD_Interface
+AddInterface = %KSCATEGORY_CAPTURE%,  GLOBAL, VirtuosoVAD_Interface
+
+[VirtuosoVAD_Interface]
+AddReg = VirtuosoVAD_Interface_AddReg
+
+[VirtuosoVAD_Interface_AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%VirtuosoVAD.FriendlyName%
+
+; 7.1 channel mask: FL, FR, C, LFE, BL, BR, SL, SR
+; SPEAKER_FRONT_LEFT|FRONT_RIGHT|CENTER|LOW_FREQUENCY|BACK_LEFT|BACK_RIGHT|SIDE_LEFT|SIDE_RIGHT
+; = 0x63F
+HKR,"EP\0","ChannelMask",0x00010001,0x3F,0x06,0x00,0x00
+
+; ---------------------------------------------------------------------------
+; File copy
+; ---------------------------------------------------------------------------
+[VirtuosoVAD.CopyList]
+VirtuosoVAD.sys
+
+[DestinationDirs]
+VirtuosoVAD.CopyList = 12  ; %SystemRoot%\System32\drivers
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+VirtuosoVAD.sys = 1,,
+
+; ---------------------------------------------------------------------------
+; Service install
+; ---------------------------------------------------------------------------
+[VirtuosoVAD_Service_Install]
+DisplayName    = %VirtuosoVAD.ServiceName%
+ServiceType    = 1       ; SERVICE_KERNEL_DRIVER
+StartType      = 3       ; SERVICE_DEMAND_START
+ErrorControl   = 1       ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\VirtuosoVAD.sys
+LoadOrderGroup = Base
+
+; ---------------------------------------------------------------------------
+; Strings
+; ---------------------------------------------------------------------------
+[Strings]
+ManufacturerName          = "Virtuoso Audio Project"
+VirtuosoVAD.DeviceDesc    = "Virtuoso Virtual 7.1 Audio Device"
+VirtuosoVAD.FriendlyName  = "Virtuoso Virtual 7.1"
+VirtuosoVAD.ServiceName   = "VirtuosoVAD"
+DiskName                  = "Virtuoso Audio Installation Disk"
+KSCATEGORY_AUDIO          = "{6994AD04-93EF-11D0-A3CC-00A0C9223196}"
+KSCATEGORY_RENDER         = "{65E8773E-8F56-11D0-A3B9-00A0C9223196}"
+KSCATEGORY_CAPTURE        = "{65E8773D-8F56-11D0-A3B9-00A0C9223196}"
+Proxy.CLSID               = "{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
