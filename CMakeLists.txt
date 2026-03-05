@@ -284,7 +284,9 @@ endif()
 # ---------------------------------------------------------------------------
 # SBOM generation (post-build)
 # ---------------------------------------------------------------------------
-virtuoso_generate_sbom(TARGET VirtuosoAudio)
+# Register 'sbom' build target (run: cmake --build . --target sbom)
+include(cmake/SBOM.cmake)
+
 
 # ---------------------------------------------------------------------------
 # Install rules (used by CPack / packaging scripts)
