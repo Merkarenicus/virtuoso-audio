@@ -78,17 +78,20 @@ set(SBOM_COMPONENTS [[
 # ---------------------------------------------------------------------------
 # Target: sbom — generates CycloneDX JSON
 # ---------------------------------------------------------------------------
-add_custom_target(sbom
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${SBOM_OUTPUT_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E echo "Generating SBOM: ${SBOM_FILE}"
-    COMMAND ${CMAKE_COMMAND}
-        -DSBOM_FILE="${SBOM_FILE}"
-        -DVIRTUOSO_VERSION="${VIRTUOSO_VERSION}"
-        -DSBOM_COMPONENTS="${SBOM_COMPONENTS}"
-        -P "${CMAKE_CURRENT_LIST_DIR}/WriteSBOM.cmake"
-    COMMENT "Generating CycloneDX 1.6 SBOM"
-    VERBATIM
-)
+if(NOT TARGET sbom)
+    add_custom_target(sbom
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${SBOM_OUTPUT_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E echo "Generating SBOM: ${SBOM_FILE}"
+        COMMAND ${CMAKE_COMMAND}
+            -DSBOM_FILE="${SBOM_FILE}"
+            -DVIRTUOSO_VERSION="${VIRTUOSO_VERSION}"
+            -DSBOM_COMPONENTS="${SBOM_COMPONENTS}"
+            -P "${CMAKE_CURRENT_LIST_DIR}/WriteSBOM.cmake"
+        COMMENT "Generating CycloneDX 1.6 SBOM"
+        VERBATIM
+    )
+endif()
+
 
 # ---------------------------------------------------------------------------
 # WriteSBOM.cmake (inline script invoked by custom target)
