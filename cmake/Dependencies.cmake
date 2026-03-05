@@ -92,28 +92,52 @@ if(VIRTUOSO_BUILD_TESTS)
 endif()
 
 # ---------------------------------------------------------------------------
-# zlib — required by libmysofa and our SupportBundle ZIP compression
+# zlib — required by libmysofa. Try system first, fall back to CPM download.
 # ---------------------------------------------------------------------------
-find_package(ZLIB REQUIRED)
+find_package(ZLIB QUIET)
+if(NOT ZLIB_FOUND)
+    message(STATUS "[Virtuoso] System ZLIB not found — fetching via CPM")
+    CPMAddPackage(
+        NAME            zlib
+        VERSION         1.3.1
+        GIT_REPOSITORY  https://github.com/madler/zlib.git
+        GIT_TAG         v1.3.1
+        GIT_SHALLOW     TRUE
+        OPTIONS
+            "ZLIB_BUILD_EXAMPLES OFF"
+    )
+    # CPM sets zlib_SOURCE_DIR / zlib_BINARY_DIR but FindZLIB uses cache vars
+    if(TARGET zlib)
+        set(ZLIB_LIBRARY zlib CACHE INTERNAL "")
+        set(ZLIB_INCLUDE_DIR ${zlib_SOURCE_DIR} ${zlib_BINARY_DIR} CACHE INTERNAL "")
+        set(ZLIB_FOUND TRUE CACHE INTERNAL "")
+    endif()
+endif()
 
 # ---------------------------------------------------------------------------
 # Platform-specific system libraries
 # ---------------------------------------------------------------------------
 if(WIN32)
-    # Windows CNG (Bcrypt) for AES-256-GCM — system library, no CPM needed
-    find_library(BCRYPT_LIB Bcrypt REQUIRED)
-    find_library(KSUSER_LIB Ksuser REQUIRED)
-    # WDK Portcls (driver only) — resolved by WDK module in separate vcxproj
+    # Bcrypt and Ksuser are present on any Windows 10+ SDK installation.
+    # Use QUIET so configure doesn't fail on CI runners before the SDK is set up;
+    # the actual link will fail clearly if they're missing.
+    find_library(BCRYPT_LIB Bcrypt)
+    find_library(KSUSER_LIB Ksuser)
+    if(NOT BCRYPT_LIB)
+        message(STATUS "[Virtuoso] Bcrypt.lib not found — ensure Windows SDK is installed")
+    endif()
 elseif(APPLE)
-    find_library(CORE_AUDIO CoreAudio    REQUIRED)
-    find_library(AUDIO_UNIT AudioUnit    REQUIRED)
-    find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
-    find_library(SECURITY Security      REQUIRED)
-    find_library(CORE_SERVICES CoreServices REQUIRED)
+    find_library(CORE_AUDIO CoreAudio)
+    find_library(AUDIO_UNIT AudioUnit)
+    find_library(CORE_FOUNDATION CoreFoundation)
+    find_library(SECURITY Security)
+    find_library(CORE_SERVICES CoreServices)
 elseif(UNIX)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(PIPEWIRE REQUIRED libpipewire-0.3)
-    pkg_check_modules(LIBSECRET REQUIRED libsecret-1)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(PIPEWIRE libpipewire-0.3)
+        pkg_check_modules(LIBSECRET libsecret-1)
+    endif()
 endif()
 
 message(STATUS "[Virtuoso] Dependencies resolved:")
