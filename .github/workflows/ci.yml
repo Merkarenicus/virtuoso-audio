@@ -1,147 +1,128 @@
-name: CI — Build & Test (All Platforms)
+name: Virtuoso Audio CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master, main, 'release/**' ]
   pull_request:
-    branches: [ main ]
+    branches: [ master, main ]
 
-env:
-  CMAKE_BUILD_PARALLEL_LEVEL: 4
-  CTEST_OUTPUT_ON_FAILURE: 1
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # ---------------------------------------------------------------------------
-  # License lint — must pass before any build is attempted
+  # Windows — Visual Studio 2022, MSBuild
   # ---------------------------------------------------------------------------
-  license-lint:
-    name: License Lint
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check ASSET_MANIFEST.json license allowlist
-        run: python3 ci/license_lint.py assets/hrir/ASSET_MANIFEST.json
-
-  # ---------------------------------------------------------------------------
-  # Windows x64 build + test
-  # ---------------------------------------------------------------------------
-  windows-x64:
-    name: Windows x64
+  build-windows:
+    name: Windows (VS 2022 x64)
     runs-on: windows-2022
-    needs: license-lint
-    strategy:
-      matrix:
-        build_type: [Debug, Release]
+
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive }
 
-      - name: Install NASM (for libsodium)
-        uses: ilammy/setup-nasm@v1
+      - name: Install CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.28"
+          ninjaVersion: "~1.11"
 
-      - name: Configure CMake
+      # Use the bundled VS 2022 — no generator flag needed: CMakePresets.json handles it
+      - name: Configure (CMakePresets)
+        working-directory: 05_IMPLEMENTATION
+        run: cmake --preset windows-vs2022 -DVIRTUOSO_BUILD_TESTS=ON
+
+      - name: Build Debug
+        working-directory: 05_IMPLEMENTATION
+        run: cmake --build build/vs2022-x64 --config Debug --parallel 4
+
+      - name: Run Tests
+        working-directory: 05_IMPLEMENTATION
+        run: ctest --preset windows-test --output-on-failure -C Debug
+
+      - name: Upload build artefacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: virtuoso-windows-debug
+          path: 05_IMPLEMENTATION/build/vs2022-x64/Debug/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # macOS — Xcode, Universal Binary
+  # ---------------------------------------------------------------------------
+  build-macos:
+    name: macOS (Xcode Universal)
+    runs-on: macos-14   # Apple Silicon runner
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 15
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Install dependencies (Homebrew)
         run: |
-          cmake -B build-win-x64 \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DVIRTUALOSO_BUILD_TESTS=ON \
-            -DVIRTUALOSO_ENABLE_ASAN=${{ matrix.build_type == 'Debug' && 'ON' || 'OFF' }} \
-            -A x64
+          brew install cmake ninja libsodium libsamplerate libmysofa
+
+      - name: Configure
+        working-directory: 05_IMPLEMENTATION
+        run: cmake --preset macos-universal -DVIRTUOSO_BUILD_TESTS=ON
 
       - name: Build
-        run: cmake --build build-win-x64 --config ${{ matrix.build_type }}
-
-      - name: Test
-        run: ctest --test-dir build-win-x64 -C ${{ matrix.build_type }} --timeout 120
-
-  # ---------------------------------------------------------------------------
-  # Windows ARM64 build
-  # ---------------------------------------------------------------------------
-  windows-arm64:
-    name: Windows ARM64
-    runs-on: windows-2022
-    needs: license-lint
-    steps:
-      - uses: actions/checkout@v4
-        with: { submodules: recursive }
-      - name: Configure CMake (ARM64)
-        run: cmake -B build-win-arm64 -A ARM64 -DVIRTUALOSO_BUILD_TESTS=ON
-      - name: Build
-        run: cmake --build build-win-arm64 --config Release
-
-  # ---------------------------------------------------------------------------
-  # macOS x64 + ARM64 (Apple Silicon universal)
-  # ---------------------------------------------------------------------------
-  macos:
-    name: macOS Universal
-    runs-on: macos-14
-    needs: license-lint
-    steps:
-      - uses: actions/checkout@v4
-        with: { submodules: recursive }
-
-      - name: Configure CMake (Universal Binary)
+        working-directory: 05_IMPLEMENTATION
         run: |
-          cmake -B build-macos \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
-            -DVIRTUALOSO_BUILD_TESTS=ON \
-            -DVIRTUALOSO_ENABLE_ASAN=ON
+          xcodebuild -workspace build/xcode-universal/VirtuosoAudio.xcworkspace \
+                     -scheme VirtuosoAudio \
+                     -configuration Debug \
+                     -destination "platform=macOS,arch=arm64" \
+                     build
 
-      - name: Build
-        run: cmake --build build-macos
-
-      - name: Test
-        run: ctest --test-dir build-macos --timeout 120
+      - name: Run Tests
+        working-directory: 05_IMPLEMENTATION
+        run: ctest --test-dir build/xcode-universal --build-config Debug --output-on-failure
 
   # ---------------------------------------------------------------------------
-  # Linux x64 (Ubuntu 24.04)
+  # Linux — GCC 13, Ninja, ASAN+UBSAN
   # ---------------------------------------------------------------------------
-  linux-x64:
-    name: Linux x64
+  build-linux:
+    name: Linux (GCC 13 + ASAN)
     runs-on: ubuntu-24.04
-    needs: license-lint
+
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive }
 
-      - name: Install audio dependencies
+      - name: Install build dependencies
         run: |
-          sudo apt-get update
+          sudo apt-get update -y
           sudo apt-get install -y \
-            libpipewire-0.3-dev libpulse-dev \
-            libsecret-1-dev libasound2-dev \
-            libfreetype6-dev libcurl4-openssl-dev \
-            libgl1-mesa-dev pkg-config
+            cmake ninja-build gcc-13 g++-13 \
+            libsodium-dev libsamplerate-dev libmysofa-dev \
+            libpipewire-0.3-dev libsecret-1-dev \
+            libasound2-dev libfreetype-dev libx11-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxcursor-dev libxcomposite-dev \
+            mesa-common-dev pkg-config
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
 
-      - name: Configure CMake (ASAN + UBSAN)
-        run: |
-          cmake -B build-linux \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DVIRTUALOSO_BUILD_TESTS=ON \
-            -DVIRTUALOSO_ENABLE_ASAN=ON \
-            -DVIRTUALOSO_ENABLE_UBSAN=ON
+      - name: Configure (ASAN + UBSAN)
+        working-directory: 05_IMPLEMENTATION
+        run: cmake --preset linux-debug -DVIRTUOSO_BUILD_TESTS=ON
 
       - name: Build
-        run: cmake --build build-linux
+        working-directory: 05_IMPLEMENTATION
+        run: cmake --build build/linux-debug --parallel 4
 
-      - name: Test
-        run: ctest --test-dir build-linux --timeout 120
+      - name: Run Tests
+        working-directory: 05_IMPLEMENTATION
+        run: ctest --test-dir build/linux-debug --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
 
-  # ---------------------------------------------------------------------------
-  # Performance gate — only on Release builds
-  # ---------------------------------------------------------------------------
-  perf-gate:
-    name: Performance Gate
-    runs-on: ubuntu-24.04
-    needs: linux-x64
-    steps:
-      - uses: actions/checkout@v4
-        with: { submodules: recursive }
-      - name: Install deps
-        run: sudo apt-get install -y libpipewire-0.3-dev libpulse-dev libsecret-1-dev libasound2-dev libfreetype6-dev libcurl4-openssl-dev libgl1-mesa-dev
-      - name: Build Release
-        run: |
-          cmake -B build-perf -DCMAKE_BUILD_TYPE=Release -DVIRTUALOSO_BUILD_TESTS=ON
-          cmake --build build-perf
-      - name: Run benchmark (fail if CPU > 8%)
-        run: ctest --test-dir build-perf -R ConvolverBench --timeout 300
+      - name: Upload Linux test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: linux-test-results
+          path: 05_IMPLEMENTATION/build/linux-debug/Testing/

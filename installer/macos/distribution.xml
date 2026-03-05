@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  installer/macos/distribution.xml
+  productbuild distribution file for Virtuoso Audio macOS installer.
+  References the VirtuosoComponent.pkg built by pkgbuild.
+-->
+<installer-gui-script minSpecVersion="2">
+    <title>Virtuoso Audio</title>
+    <organization>audio.virtuoso.app</organization>
+    <domains enable_localSystem="true"/>
+    <options customize="allow" require-scripts="false" rootVolumeOnly="true"/>
+
+    <welcome    file="Welcome.rtf"    mime-type="text/rtf"/>
+    <license    file="LICENSE.rtf"    mime-type="text/rtf"/>
+    <readme     file="ReadMe.rtf"     mime-type="text/rtf"/>
+
+    <pkg-ref id="audio.virtuoso.app.core" version="1.0.0">VirtuosoComponent.pkg</pkg-ref>
+
+    <choices-outline>
+        <line choice="audio.virtuoso.app.core"/>
+    </choices-outline>
+
+    <choice id="audio.virtuoso.app.core"
+            visible="true"
+            enabled="true"
+            selected="true"
+            title="Virtuoso Audio"
+            description="Installs Virtuoso Audio app and virtual 7.1 HAL driver.">
+        <pkg-ref id="audio.virtuoso.app.core"/>
+    </choice>
+
+    <!-- Require macOS 13+ -->
+    <installation-check script="InstallationCheck()"/>
+    <script>
+    function InstallationCheck() {
+        if (!system.compareVersions(system.version.ProductVersion, '13.0') >= 0) {
+            my.result.type    = 'Fatal';
+            my.result.title   = 'Unsupported macOS Version';
+            my.result.message = 'Virtuoso Audio requires macOS 13 Ventura or later.';
+            return false;
+        }
+        return true;
+    }
+    </script>
+</installer-gui-script>

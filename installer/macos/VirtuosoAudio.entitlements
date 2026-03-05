@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  installer/macos/VirtuosoAudio.entitlements
+  Hardened runtime entitlements for the Virtuoso Audio application.
+  Minimum necessary permissions for audio capture and GPU rendering.
+-->
+<plist version="1.0">
+<dict>
+    <!-- Required for JUCE OpenGL rendering -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <false/>
+
+    <!-- Hardened runtime: no unsigned executable memory -->
+    <key>com.apple.security.cs.disable-executable-page-protection</key>
+    <false/>
+
+    <!-- Audio access for capture from virtual device -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
+    <!-- Required: load our own AudioServerPlugIn driver -->
+    <key>com.apple.security.temporary-exception.audio-unit-host</key>
+    <true/>
+
+    <!-- File access for HRIR and profile files in Application Support -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- For crash report opt-in (no-op if not implementing telemetry) -->
+    <key>com.apple.security.network.client</key>
+    <false/>
+</dict>
+</plist>

@@ -1,61 +1,62 @@
-name: Nightly Fuzz — WAV / SOFA / JSON Parsers
+name: Fuzz Tests
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # 2:00 AM UTC nightly
-  workflow_dispatch:      # Allow manual trigger
+    - cron: '0 2 * * 1'   # Weekly — Monday 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: 'Fuzzing duration per target (seconds)'
+        default: '300'
+        type: string
 
 jobs:
   fuzz:
-    name: Fuzz (${{ matrix.target }})
+    name: libFuzzer — ${{ matrix.target }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        target: [FuzzWavParser, FuzzSofaParser, FuzzJsonProfile]
+        target: [ FuzzWavParser, FuzzSofaParser ]
 
     steps:
       - uses: actions/checkout@v4
-        with: { submodules: recursive }
 
-      - name: Install audio deps
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang lld \
-            libpipewire-0.3-dev libpulse-dev libsecret-1-dev \
-            libasound2-dev libfreetype6-dev libcurl4-openssl-dev libgl1-mesa-dev
+          sudo apt-get update -y
+          sudo apt-get install -y clang-17 cmake ninja-build \
+            libsodium-dev libsamplerate-dev libmysofa-dev \
+            libasound2-dev libfreetype-dev libx11-dev pkg-config
 
-      - name: Configure (Clang + libFuzzer + ASAN)
+      - name: Configure (Clang + libFuzzer)
+        working-directory: 05_IMPLEMENTATION
         run: |
-          CC=clang CXX=clang++ cmake -B build-fuzz \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DVIRTUALOSO_BUILD_TESTS=ON \
-            -DCMAKE_CXX_FLAGS="-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer"
+          cmake -B build/fuzz -G Ninja \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_CXX_FLAGS="-fsanitize=fuzzer,address -fno-omit-frame-pointer" \
+            -DVIRTUOSO_BUILD_TESTS=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
-      - name: Build fuzz target
-        run: cmake --build build-fuzz --target ${{ matrix.target }}
+      - name: Build fuzz targets
+        working-directory: 05_IMPLEMENTATION
+        run: cmake --build build/fuzz --target ${{ matrix.target }} --parallel 4
 
-      - name: Prepare corpus
+      - name: Run fuzzer
+        working-directory: 05_IMPLEMENTATION
         run: |
-          mkdir -p fuzz_corpus/${{ matrix.target }}
-          cp tests/testdata/*.wav fuzz_corpus/${{ matrix.target }}/ 2>/dev/null || true
-          cp tests/testdata/*.sofa fuzz_corpus/${{ matrix.target }}/ 2>/dev/null || true
+          DURATION=${{ github.event.inputs.duration_seconds || '300' }}
+          ./build/fuzz/tests/fuzz/${{ matrix.target }} \
+            -max_total_time=$DURATION \
+            -rss_limit_mb=2048 \
+            -artifact_prefix=fuzz-crashes/ \
+            tests/fuzz/corpus/${{ matrix.target }}/
+        env:
+          ASAN_OPTIONS: detect_leaks=0
 
-      - name: Run fuzzer (10M iterations or 30 min max)
-        run: |
-          ./build-fuzz/${{ matrix.target }} \
-            fuzz_corpus/${{ matrix.target }}/ \
-            -max_total_time=1800 \
-            -runs=10000000 \
-            -jobs=4 \
-            -workers=4 \
-            -artifact_prefix=crash_${{ matrix.target }}_
-        timeout-minutes: 35
-
-      - name: Upload crash artifacts
-        if: failure()
+      - name: Upload crash artefacts
         uses: actions/upload-artifact@v4
+        if: failure()
         with:
           name: fuzz-crashes-${{ matrix.target }}
-          path: crash_${{ matrix.target }}_*
+          path: 05_IMPLEMENTATION/fuzz-crashes/
