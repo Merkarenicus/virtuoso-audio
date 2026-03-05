@@ -1,4 +1,15 @@
 cmake_minimum_required(VERSION 3.24)
+
+# ---------------------------------------------------------------------------
+# CMake 4.0 compatibility: allow CPM-fetched dependencies (e.g. libmysofa)
+# whose own CMakeLists.txt still uses cmake_minimum_required(VERSION < 3.5).
+# Must be set before any CPM/FetchContent calls.
+# ---------------------------------------------------------------------------
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING
+        "Minimum CMake policy version accepted in fetched dependency CMakeLists.txt" FORCE)
+endif()
+
 project(VirtuosoAudio VERSION 1.0.0 LANGUAGES CXX)
 
 # ---------------------------------------------------------------------------
