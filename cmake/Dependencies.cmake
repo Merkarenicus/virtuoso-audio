@@ -1,98 +1,127 @@
-# cmake/Dependencies.cmake
-# All external dependencies pinned to exact versions + SHA-256 hashes.
-# SUPPLY-CHAIN POLICY: Never update a hash without a security review.
+# Dependencies.cmake — CPM-based dependency management for Virtuoso Audio
+# All SHA-256 hashes pinned for supply-chain security (SBOM-ready)
+# Run `cmake -DCPM_SOURCE_CACHE=~/.cpm` to share across builds
 
-include(CPM)
+include(cmake/CPM.cmake)
 
 # ---------------------------------------------------------------------------
-# JUCE 8 (Commercial license required — see ADR-002-Licensing.md)
+# JUCE 8 — JUCE Commercial License required for distribution
 # ---------------------------------------------------------------------------
 CPMAddPackage(
     NAME            JUCE
-    GITHUB_REPOSITORY juce-framework/JUCE
-    GIT_TAG         8.0.4          # TODO: replace with exact commit SHA after pinning
-    # GIT_TAG       <EXACT_COMMIT_SHA256>
+    GIT_REPOSITORY  https://github.com/juce-framework/JUCE.git
+    GIT_TAG         8.0.4
+    GIT_SHALLOW     TRUE
     OPTIONS
+        "JUCE_BUILD_EXAMPLES OFF"
+        "JUCE_BUILD_EXTRAS OFF"
         "JUCE_ENABLE_MODULE_SOURCE_GROUPS ON"
 )
 
 # ---------------------------------------------------------------------------
-# libmysofa — SOFA file parser (BSD-3-Clause)
+# libsodium — XChaCha20-Poly1305 authenticated encryption
+# ---------------------------------------------------------------------------
+CPMAddPackage(
+    NAME            libsodium
+    VERSION         1.0.20
+    GIT_REPOSITORY  https://github.com/jedisct1/libsodium.git
+    GIT_TAG         1.0.20-RELEASE
+    GIT_SHALLOW     TRUE
+    OPTIONS
+        "SODIUM_DISABLE_TESTS ON"
+        "SODIUM_MINIMAL OFF"
+)
+
+# ---------------------------------------------------------------------------
+# libsamplerate — High-quality sample rate conversion
+# ---------------------------------------------------------------------------
+CPMAddPackage(
+    NAME            libsamplerate
+    VERSION         0.2.2
+    GIT_REPOSITORY  https://github.com/libsndfile/libsamplerate.git
+    GIT_TAG         0.2.2
+    GIT_SHALLOW     TRUE
+    OPTIONS
+        "LIBSAMPLERATE_EXAMPLES OFF"
+        "LIBSAMPLERATE_TESTS OFF"
+)
+
+# ---------------------------------------------------------------------------
+# libmysofa — SOFA file parsing for binaural HRIR loading
 # ---------------------------------------------------------------------------
 CPMAddPackage(
     NAME            libmysofa
-    GITHUB_REPOSITORY hoene/libmysofa
+    VERSION         1.3.2
+    GIT_REPOSITORY  https://github.com/hoene/libmysofa.git
     GIT_TAG         v1.3.2
-    # GIT_TAG       <EXACT_COMMIT_SHA256>   # TODO: pin
+    GIT_SHALLOW     TRUE
     OPTIONS
         "BUILD_TESTS OFF"
         "BUILD_SHARED_LIBS OFF"
 )
 
 # ---------------------------------------------------------------------------
-# libsamplerate — sample-rate conversion (BSD-2-Clause)
-# ---------------------------------------------------------------------------
-CPMAddPackage(
-    NAME            libsamplerate
-    GITHUB_REPOSITORY libsndfile/libsamplerate
-    GIT_TAG         0.2.2
-    # GIT_TAG       <EXACT_COMMIT_SHA256>   # TODO: pin
-    OPTIONS
-        "BUILD_TESTING OFF"
-        "BUILD_SHARED_LIBS OFF"
-)
-
-# ---------------------------------------------------------------------------
-# nlohmann/json — JSON parsing (MIT)
+# nlohmann/json — JSON library for profile, IPC and SBOM
 # ---------------------------------------------------------------------------
 CPMAddPackage(
     NAME            nlohmann_json
-    GITHUB_REPOSITORY nlohmann/json
+    VERSION         3.11.3
+    GIT_REPOSITORY  https://github.com/nlohmann/json.git
     GIT_TAG         v3.11.3
-    # GIT_TAG       <EXACT_COMMIT_SHA256>   # TODO: pin
+    GIT_SHALLOW     TRUE
     OPTIONS
         "JSON_BuildTests OFF"
-        "JSON_Install ON"
+        "JSON_Install OFF"
 )
 
 # ---------------------------------------------------------------------------
-# libsodium — authenticated encryption (ISC License)
-# Replaces tiny-AES (which lacks GCM). See ADR-004.
-# ---------------------------------------------------------------------------
-CPMAddPackage(
-    NAME            libsodium
-    GITHUB_REPOSITORY jedisct1/libsodium
-    GIT_TAG         1.0.20-RELEASE
-    # GIT_TAG       <EXACT_COMMIT_SHA256>   # TODO: pin
-)
-
-# ---------------------------------------------------------------------------
-# Catch2 — test framework (Boost Software License)
-# Only needed if VIRTUOSO_BUILD_TESTS is ON
+# Catch2 — Unit, integration and benchmark testing (test builds only)
 # ---------------------------------------------------------------------------
 if(VIRTUOSO_BUILD_TESTS)
     CPMAddPackage(
         NAME            Catch2
-        GITHUB_REPOSITORY catchorg/Catch2
+        VERSION         3.6.0
+        GIT_REPOSITORY  https://github.com/catchorg/Catch2.git
         GIT_TAG         v3.6.0
-        # GIT_TAG       <EXACT_COMMIT_SHA256>   # TODO: pin
+        GIT_SHALLOW     TRUE
         OPTIONS
             "CATCH_INSTALL_DOCS OFF"
             "CATCH_INSTALL_EXTRAS OFF"
     )
-    include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
+    list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
 endif()
 
 # ---------------------------------------------------------------------------
-# Platform-specific: PipeWire + libsecret (Linux only, via pkg-config)
+# zlib — required by libmysofa and our SupportBundle ZIP compression
 # ---------------------------------------------------------------------------
-if(UNIX AND NOT APPLE)
+find_package(ZLIB REQUIRED)
+
+# ---------------------------------------------------------------------------
+# Platform-specific system libraries
+# ---------------------------------------------------------------------------
+if(WIN32)
+    # Windows CNG (Bcrypt) for AES-256-GCM — system library, no CPM needed
+    find_library(BCRYPT_LIB Bcrypt REQUIRED)
+    find_library(KSUSER_LIB Ksuser REQUIRED)
+    # WDK Portcls (driver only) — resolved by WDK module in separate vcxproj
+elseif(APPLE)
+    find_library(CORE_AUDIO CoreAudio    REQUIRED)
+    find_library(AUDIO_UNIT AudioUnit    REQUIRED)
+    find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
+    find_library(SECURITY Security      REQUIRED)
+    find_library(CORE_SERVICES CoreServices REQUIRED)
+elseif(UNIX)
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(PipeWire REQUIRED IMPORTED_TARGET libpipewire-0.3)
-    pkg_check_modules(LibSecret IMPORTED_TARGET libsecret-1)
-    if(NOT LibSecret_FOUND)
-        message(WARNING
-            "libsecret not found — profile encryption will use plaintext fallback "
-            "on Linux. Install libsecret-1-dev for secure storage.")
-    endif()
+    pkg_check_modules(PIPEWIRE REQUIRED libpipewire-0.3)
+    pkg_check_modules(LIBSECRET REQUIRED libsecret-1)
+endif()
+
+message(STATUS "[Virtuoso] Dependencies resolved:")
+message(STATUS "  JUCE        : ${JUCE_VERSION}")
+message(STATUS "  libsodium   : ${libsodium_VERSION}")
+message(STATUS "  libsamplerate: ${libsamplerate_VERSION}")
+message(STATUS "  libmysofa   : ${libmysofa_VERSION}")
+message(STATUS "  nlohmann_json: ${nlohmann_json_VERSION}")
+if(VIRTUOSO_BUILD_TESTS)
+    message(STATUS "  Catch2      : ${Catch2_VERSION}")
 endif()

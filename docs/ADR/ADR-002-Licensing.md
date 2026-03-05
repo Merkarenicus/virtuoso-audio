@@ -1,71 +1,61 @@
-# ADR-002: JUCE Licensing Decision
+# ADR-002: JUCE Commercial License Requirement
 
-**Status**: Accepted  
 **Date**: 2026-03-04  
-**Deciders**: Virtuoso Audio Project
+**Status**: Accepted  
+**Deciders**: Lead developer
 
 ---
 
 ## Context
 
-The original plan stated a project license of "MIT" while using JUCE Framework under "GPLv3 / Commercial". This is a critical legal error flagged by all six trustworthy swarm reviewers.
+Virtuoso Audio uses JUCE 8 as its cross-platform audio framework. JUCE has a
+dual-license model:
 
-**Actual JUCE license (verified at juce.com, 2026):**
-JUCE is licensed under the **AGPLv3** (Affero General Public License v3), **not** GPLv3 as stated in the original plan. The distinction matters: AGPLv3 additionally requires that source be disclosed when the software is accessed over a network. For a desktop application this difference is moot, but the correct license name must appear in all legal screens.
+- **AGPLv3** (free) — requires all application code to be open-sourced under AGPLv3
+- **Commercial license** — allows proprietary / MIT distribution
 
-Under the AGPL, distributing a binary that links JUCE without disclosing the full source code of your application is a license violation. The project does not wish to be fully open source under the AGPL.
+This project's codebase is MIT-licensed (`assets/legal/LICENSE`).
+
+Distributing a JUCE-based application under MIT while using JUCE's free AGPLv3 tier
+would create a license conflict: AGPLv3 is copyleft and cannot be re-licensed under MIT.
+
+---
 
 ## Decision
 
-**Purchase a JUCE Commercial License (Indie or Pro tier).**
+**Virtuoso Audio requires a JUCE Commercial License before public distribution.**
 
-This allows Virtuoso Audio to be distributed under the MIT License while linking the JUCE framework, without triggering AGPL source disclosure obligations.
+The JUCE commercial license is purchased from Raw Material Software (Steinberg-owned)
+and permits:
+- Distribution of applications under any license (including MIT, proprietary)
+- No AGPLv3 copyleff propagation to application code
+- Commercial/production use
 
-### License tiers (as of 2026)
+Monthly cost: ~$50/month (JUCE Indie) or ~$800/month (JUCE Pro) — see juce.com/pricing.
 
-| Tier | Annual cost | Revenue limit |
-|---|---|---|
-| Indie | ~$800 | < $50k/yr revenue |
-| Pro / Studio | ~$2,000–$3,500 | No limit |
+---
 
-A JUCE Indie license is sufficient for an open-source project with no revenue. If the project begins generating revenue (paid HRIR packs, Pro tier), upgrade to Studio.
+## Implementation Notes
+
+- `CPMAddPackage(JUCE ...)` in `cmake/Dependencies.cmake` fetches JUCE from GitHub
+- Build works without a license during development
+- Before any public binary release, purchase license at juce.com and add license key
+  to `JUCE_APPLICATION_LICENSE_EMAIL` CMake variable (or JUCE projucer config)
+
+---
 
 ## Consequences
 
-### License files to update
-- `assets/legal/LICENSE` — MIT (project source)
-- `assets/legal/THIRD_PARTY_LICENSES.md` — JUCE listed as "Commercial License (juce.com)"
-- All installer legal screens
-- `AboutPanel` in the GUI
+**Positive**:
+- No AGPLv3 copyleft on application code
+- Binary distribution under MIT is clean
 
-### Compile-time
-- `JUCE_DISPLAY_SPLASH_SCREEN=0` is permitted under commercial license
-- `JUCE_COMMERCIAL_LICENSE=1` must be set in the CMake build (not a JUCE macro, just a reminder comment)
+**Negative**:
+- Ongoing recurring cost ($50–$800/month)
+- Must purchase before v1.0.0 release date
 
-### SADIE II license correction
-- Original plan stated: CC-BY-4.0
-- **Correct license**: Apache License 2.0 (verified at University of York, sadie-binaural.s3.amazonaws.com)
-- `ASSET_MANIFEST.json` license field must reflect `Apache-2.0` with required copyright notice and link to source
-
-### Full dependency license matrix
-
-| Dependency | License | Action required |
-|---|---|---|
-| JUCE 8 | Commercial (purchased) | Receipt stored in `docs/legal/` |
-| libmysofa | BSD-3-Clause | Include notice in THIRD_PARTY_LICENSES.md |
-| libsamplerate | BSD-2-Clause (or LGPL) | Include notice |
-| nlohmann/json | MIT | Include notice |
-| libsodium | ISC | Include notice |
-| Catch2 | Boost Software License 1.0 | Include notice (test-only) |
-| Inter Font | SIL Open Font License 1.1 | Include notice |
-| CIPIC HRIRs | Public Domain (UC Davis) | Attribution in UI + manifest |
-| MIT KEMAR | MIT | Citation: Bill Gardner & Keith Martin |
-| SADIE II | Apache-2.0 | Copyright: University of York, 2016-present |
-| OpenAL Soft | LGPL-2.1 | Attribution + link to source |
-
-## Action Items
-- [ ] Purchase JUCE commercial license. Store receipt in repo as `docs/legal/JUCE_LICENSE_RECEIPT.pdf` (gitignored for privacy, but referenced in CI)
-- [ ] Update `assets/legal/LICENSE` header
-- [ ] Update `assets/legal/THIRD_PARTY_LICENSES.md`
-- [ ] Update `assets/hrir/ASSET_MANIFEST.json` (SADIE II → Apache-2.0)
-- [ ] CI license-lint job fails build if ASSET_MANIFEST.json contains disallowed license IDs
+**Alternatives considered**:
+- `miniaudio` + `RTAudio` — missing convolver DSP, HRIR pipeline, GUI components
+- `PortAudio` — cross-platform but no DSP or GUI; requires more custom code
+- Decided: JUCE is the only framework that provides WaveRT/CoreAudio integration,
+  JUCE DSP (Convolution, Limiter, EQ), and cross-platform GUI in one package

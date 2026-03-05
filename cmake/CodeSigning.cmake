@@ -1,66 +1,116 @@
-# cmake/CodeSigning.cmake
-# EV code-signing helpers for Windows driver (.sys) and installer (.exe).
-#
-# REQUIREMENTS:
-#   Windows driver (.sys):
-#     - EV Code Signing Certificate (DigiCert, Sectigo, etc.) (~$400–800/yr)
-#     - Microsoft Partner Center account for attestation signing
-#     - signtool.exe from Windows SDK
-#
-#   macOS:
-#     - Apple Developer ID Application certificate ($99/yr)
-#     - Notarization via xcrun notarytool
-#
-# Usage:
-#   virtuoso_sign_binary(TARGET <target> FILE <path>)
+# CodeSigning.cmake — Platform-specific code signing helpers for Virtuoso Audio
+# Applied post-build in Release/RelWithDebInfo configurations.
+# Usage: include(cmake/CodeSigning.cmake) in root CMakeLists.txt after targets defined.
 
-function(virtuoso_sign_binary)
-    cmake_parse_arguments(ARG "" "TARGET;FILE" "" ${ARGN})
+option(VIRTUOSO_CODESIGN "Enable post-build code signing" OFF)
+option(VIRTUOSO_NOTARIZE  "Enable macOS notarization (requires --apple-id, --team-id)" OFF)
 
-    if(WIN32)
-        # ----------------------------------------------------------------
-        # Windows: signtool with EV certificate
-        # Set VIRTUOSO_WIN_SIGN_CERT_THUMBPRINT in your CI environment.
-        # ----------------------------------------------------------------
-        find_program(SIGNTOOL signtool
-            HINTS
-                "C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64"
-                "C:/Program Files (x86)/Windows Kits/10/bin/10.0.19041.0/x64"
-        )
-        if(SIGNTOOL AND DEFINED ENV{VIRTUOSO_WIN_SIGN_CERT_THUMBPRINT})
-            add_custom_command(TARGET ${ARG_TARGET} POST_BUILD
-                COMMAND ${SIGNTOOL} sign
-                    /sha1 "$ENV{VIRTUOSO_WIN_SIGN_CERT_THUMBPRINT}"
-                    /tr http://timestamp.digicert.com
-                    /td SHA256
-                    /fd SHA256
-                    "${ARG_FILE}"
-                COMMENT "EV code-signing ${ARG_FILE}"
-            )
-        else()
-            message(WARNING
-                "[CodeSigning] Windows signing skipped. "
-                "Set VIRTUOSO_WIN_SIGN_CERT_THUMBPRINT env var and install Windows SDK.")
-        endif()
+if(NOT VIRTUOSO_CODESIGN)
+    message(STATUS "[CodeSigning] Code signing disabled. Pass -DVIRTUOSO_CODESIGN=ON to enable.")
+    return()
+endif()
 
-    elseif(APPLE)
-        # ----------------------------------------------------------------
-        # macOS: codesign + notarytool
-        # Set VIRTUOSO_APPLE_SIGN_IDENTITY in your CI environment.
-        # ----------------------------------------------------------------
-        find_program(CODESIGN codesign)
-        if(CODESIGN AND DEFINED ENV{VIRTUOSO_APPLE_SIGN_IDENTITY})
-            add_custom_command(TARGET ${ARG_TARGET} POST_BUILD
-                COMMAND ${CODESIGN}
-                    --deep --force --options runtime
-                    --sign "$ENV{VIRTUOSO_APPLE_SIGN_IDENTITY}"
-                    "${ARG_FILE}"
-                COMMENT "codesign ${ARG_FILE}"
-            )
-        else()
-            message(WARNING
-                "[CodeSigning] macOS signing skipped. "
-                "Set VIRTUOSO_APPLE_SIGN_IDENTITY env var.")
-        endif()
+# ---------------------------------------------------------------------------
+# Windows — signtool with EV certificate
+# ---------------------------------------------------------------------------
+if(WIN32)
+    find_program(SIGNTOOL signtool
+        PATHS
+            "C:/Program Files (x86)/Windows Kits/10/bin/x64"
+            "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64"
+        REQUIRED
+    )
+
+    set(VIRTUOSO_WIN_CERT_SUBJECT "" CACHE STRING
+        "Windows EV certificate subject name (e.g. 'Virtuoso Audio Project')")
+    set(VIRTUOSO_TIMESTAMP_URL "http://timestamp.digicert.com"
+        CACHE STRING "RFC 3161 timestamp server URL")
+
+    if(VIRTUOSO_WIN_CERT_SUBJECT STREQUAL "")
+        message(FATAL_ERROR "[CodeSigning] Set -DVIRTUOSO_WIN_CERT_SUBJECT='CN of your EV cert'")
     endif()
-endfunction()
+
+    function(virtuoso_sign_target TARGET)
+        add_custom_command(TARGET ${TARGET} POST_BUILD
+            COMMAND "${SIGNTOOL}" sign
+                /v
+                /fd SHA256
+                /n "${VIRTUOSO_WIN_CERT_SUBJECT}"
+                /tr "${VIRTUOSO_TIMESTAMP_URL}"
+                /td SHA256
+                "$<TARGET_FILE:${TARGET}>"
+            COMMENT "Signing ${TARGET} with EV certificate"
+            VERBATIM
+        )
+    endfunction()
+
+# ---------------------------------------------------------------------------
+# macOS — codesign + optional notarytool
+# ---------------------------------------------------------------------------
+elseif(APPLE)
+    find_program(CODESIGN codesign REQUIRED)
+    find_program(XCRUN    xcrun    REQUIRED)
+
+    set(VIRTUOSO_MAC_CERT "Developer ID Application: Virtuoso Audio Project"
+        CACHE STRING "macOS Developer ID Application certificate name")
+    set(VIRTUOSO_APPLE_ID "" CACHE STRING "Apple ID for notarization")
+    set(VIRTUOSO_TEAM_ID  "" CACHE STRING "Apple Team ID for notarization")
+    set(VIRTUOSO_KEYCHAIN_PROFILE "virtuoso-notarytool-password"
+        CACHE STRING "Keychain profile for notarytool credentials")
+
+    function(virtuoso_sign_target TARGET)
+        get_target_property(_type ${TARGET} TYPE)
+        set(_entitlements "${CMAKE_SOURCE_DIR}/installer/macos/VirtuosoAudio.entitlements")
+
+        add_custom_command(TARGET ${TARGET} POST_BUILD
+            COMMAND "${CODESIGN}"
+                --sign "${VIRTUOSO_MAC_CERT}"
+                --options runtime
+                --entitlements "${_entitlements}"
+                --timestamp
+                --deep
+                --force
+                "$<TARGET_BUNDLE_DIR:${TARGET}>"
+            COMMENT "Signing ${TARGET} for macOS distribution"
+            VERBATIM
+        )
+
+        if(VIRTUOSO_NOTARIZE AND VIRTUOSO_APPLE_ID AND VIRTUOSO_TEAM_ID)
+            add_custom_command(TARGET ${TARGET} POST_BUILD APPEND
+                COMMAND ${CMAKE_COMMAND} -E echo "Notarizing ${TARGET}..."
+                COMMAND "${XCRUN}" notarytool submit
+                    "$<TARGET_BUNDLE_DIR:${TARGET}>"
+                    --apple-id  "${VIRTUOSO_APPLE_ID}"
+                    --team-id   "${VIRTUOSO_TEAM_ID}"
+                    --keychain-profile "${VIRTUOSO_KEYCHAIN_PROFILE}"
+                    --wait
+                COMMAND "${XCRUN}" stapler staple "$<TARGET_BUNDLE_DIR:${TARGET}>"
+                COMMENT "Notarizing and stapling ${TARGET}"
+                VERBATIM
+            )
+        endif()
+    endfunction()
+
+# ---------------------------------------------------------------------------
+# Linux — GPG detached signature (.asc)
+# ---------------------------------------------------------------------------
+elseif(UNIX)
+    find_program(GPG gpg QUIET)
+    set(VIRTUOSO_GPG_KEY_ID "" CACHE STRING "GPG key fingerprint for Linux package signing")
+
+    function(virtuoso_sign_target TARGET)
+        if(GPG AND NOT VIRTUOSO_GPG_KEY_ID STREQUAL "")
+            add_custom_command(TARGET ${TARGET} POST_BUILD
+                COMMAND "${GPG}"
+                    --batch --yes
+                    --local-user "${VIRTUOSO_GPG_KEY_ID}"
+                    --detach-sign --armor
+                    "$<TARGET_FILE:${TARGET}>"
+                COMMENT "GPG-signing ${TARGET}"
+                VERBATIM
+            )
+        else()
+            message(STATUS "[CodeSigning] GPG or key not set — Linux signing skipped")
+        endif()
+    endfunction()
+endif()

@@ -22,16 +22,11 @@ SOFTWARE.
 
 ---
 
-IMPORTANT NOTICES:
+## Dependency Notices
 
-This software is built using the JUCE Framework under a Commercial License.
-The project source code is released under the MIT License above; however,
-the JUCE framework components are NOT MIT-licensed.
-See assets/legal/THIRD_PARTY_LICENSES.md for details.
+This software bundles or links against third-party libraries. Their licenses are
+listed in `assets/legal/THIRD_PARTY_LICENSES.md`.
 
-This software includes a virtual audio device driver (drivers/windows/).
-The driver component is separately licensed under the MIT License.
-The Windows driver must be EV code-signed and attested by Microsoft.
-
-This software does not include any proprietary audio processing technology
-from Dolby, DTS, Sony, or any other proprietary vendor.
+IMPORTANT: JUCE (used as the audio framework) is licensed separately.
+Before distributing Virtuoso Audio binaries, a JUCE Commercial License MUST be
+purchased from Raw Material Software. See ADR-002 and assets/legal/THIRD_PARTY_LICENSES.md.

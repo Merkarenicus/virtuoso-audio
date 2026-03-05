@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Virtuoso Audio Project Contributors
 //
-// FuzzWavParser.cpp — libFuzzer harness for WavHrirParser
-// Fuzzes arbitrary byte sequences through the WAV HRIR parser.
+// FuzzSofaParser.cpp — libFuzzer harness for SofaHrirParser
+// Fuzzes arbitrary byte sequences through the SOFA parser (libmysofa).
+// Any crash, OOB read, or sanitizer report = security-relevant bug.
 //
-// Build: cmake -DVIRTUOSO_BUILD_FUZZ=ON with Clang
-// Run:   ./FuzzWavParser -max_total_time=300 tests/fuzz/corpus/FuzzWavParser/
+// Run: ./FuzzSofaParser -max_total_time=300 tests/fuzz/corpus/FuzzSofaParser/
 
 #include "../../src/hrir/HrirValidator.h"
-#include "../../src/hrir/WavHrirParser.h"
+#include "../../src/hrir/SofaHrirParser.h"
 #include <cstddef>
 #include <cstdint>
 #include <juce_core/juce_core.h>
@@ -17,7 +17,12 @@
 using namespace virtuoso;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-  juce::File tmp = juce::File::createTempFile(".fuzz.wav");
+  // Fuzz input must have minimum size to avoid trivial rejections in
+  // mysofa_open
+  if (size < 8)
+    return 0;
+
+  juce::File tmp = juce::File::createTempFile(".fuzz.sofa");
 
   {
     auto stream = tmp.createOutputStream();
@@ -26,9 +31,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     stream->write(data, size);
   }
 
-  WavHrirParser parser;
+  SofaHrirParser parser;
   auto result = parser.parse(tmp);
 
+  // Validate any successfully-parsed SOFA data
   if (result.has_value()) {
     for (int s = 0; s < HrirSet::kSpeakerCount; ++s)
       HrirValidator::validateChannelPair(result->channels[s].left,

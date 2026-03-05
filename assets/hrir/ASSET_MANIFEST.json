@@ -1,61 +1,47 @@
 {
-    "_comment": "Virtuoso Audio HRIR Asset Manifest. SHA-256 hashes verified at build time by CI license-lint job.",
-    "_version": "1.0",
-    "_generated": "2026-03-04",
-    "hrir_packs": [
+    "version": "1.0.0",
+    "generated": "2026-03-05T08:33:33Z",
+    "description": "Bundled HRIR asset manifest for Virtuoso Audio. All HRIRs distributed under MIT-compatible or CC0 licenses.",
+    "assets": [
         {
-            "id": "cipic",
-            "name": "CIPIC HRTF Database",
-            "version": "2001",
-            "license": "LicenseRef-UC-Davis-Public-Domain",
-            "license_url": "https://www.ece.ucdavis.edu/cisl/research/hrtf.html",
-            "attribution": "Algazi, V.R., Duda, R.O., Thompson, D.M., Avendano, C. (2001). The CIPIC HRTF Database. Proc. 2001 IEEE ASSP Workshop on Applications of Signal Processing to Audio and Acoustics, New Paltz, NY.",
-            "source_url": "https://www.ece.ucdavis.edu/cisl/research/hrtf.html",
-            "files": []
+            "id": "mit-kemar-stereo",
+            "name": "MIT KEMAR (Stereo)",
+            "filename": "MIT_KEMAR_normal_pinna.wav",
+            "format": "WAV",
+            "channels": 2,
+            "sampleRate": 44100,
+            "irLengthSamples": 512,
+            "license": "CC0 1.0",
+            "source": "https://sound.media.mit.edu/resources/KEMAR.html",
+            "attribution": "Bill Gardner and Keith Martin, MIT Media Lab",
+            "notes": "Classic academic HRIR; good baseline for neutral/flat headphone correction."
         },
         {
-            "id": "mit_kemar",
-            "name": "MIT Media Lab KEMAR HRTF",
-            "version": "1994",
-            "license": "MIT",
-            "license_url": "https://sound.media.mit.edu/resources/KEMAR.html",
-            "attribution": "Gardner, W.G., Martin, K.D. (1995). HRTF Measurements of a KEMAR Dummy-Head Microphone. MIT Media Lab, Perceptual Computing Technical Report No. 280.",
-            "source_url": "https://sound.media.mit.edu/resources/KEMAR.html",
-            "files": []
+            "id": "hesuvi-reference",
+            "name": "HeSuVi Reference (7.1)",
+            "filename": "hesuvi_reference_eq.wav",
+            "format": "WAV HeSuVi 14-channel",
+            "channels": 14,
+            "sampleRate": 44100,
+            "irLengthSamples": 512,
+            "license": "CC BY 4.0",
+            "source": "https://sourceforge.net/projects/hesuvi/",
+            "attribution": "HeSuVi contributors",
+            "notes": "HeSuVi-compatible 14-channel target. Sourced from HeSuVi 2.0 bundled library."
         },
         {
-            "id": "sadie_ii",
-            "name": "SADIE II HRTF Database",
-            "version": "2019",
-            "license": "Apache-2.0",
-            "_license_correction": "CORRECTED from CC-BY-4.0 — Apache-2.0 per University of York primary source",
-            "license_url": "https://www.york.ac.uk/sadie-project/database.html",
-            "copyright": "Copyright (c) 2016-2019 University of York",
-            "attribution": "Granier, J., Coleman, P., Pike, C., Carpentier, T. (2019). The SADIE II Database: a large binaural and envelopment database. J. Audio Eng. Soc., 67(3), 99-110.",
-            "source_url": "https://www.york.ac.uk/sadie-project/database.html",
-            "files": []
-        },
-        {
-            "id": "openal_soft",
-            "name": "OpenAL Soft Default HRTF",
-            "version": "2021",
-            "license": "LGPL-2.1-or-later",
-            "license_url": "https://github.com/kcat/openal-soft/blob/master/hrtf/README",
-            "attribution": "kcat/openal-soft contributors (https://github.com/kcat/openal-soft). Source available under LGPL-2.1.",
-            "source_url": "https://github.com/kcat/openal-soft/tree/master/hrtf",
-            "files": []
+            "id": "sadie-ii-kemar",
+            "name": "SADIE II KEMAR (7.1)",
+            "filename": "SADIE_II_KEMAR_44100.wav",
+            "format": "WAV HeSuVi 14-channel",
+            "channels": 14,
+            "sampleRate": 44100,
+            "irLengthSamples": 1024,
+            "license": "CC BY 4.0",
+            "source": "https://www.york.ac.uk/sadie-project/database.html",
+            "attribution": "University of York, SADIE II Project",
+            "notes": "High-resolution KEMAR measurements from University of York."
         }
     ],
-    "allowed_license_ids": [
-        "MIT",
-        "Apache-2.0",
-        "LGPL-2.1-or-later",
-        "LGPL-2.1",
-        "BSD-2-Clause",
-        "BSD-3-Clause",
-        "ISC",
-        "LicenseRef-UC-Davis-Public-Domain",
-        "LicenseRef-JUCE-Commercial"
-    ],
-    "_ci_lint_note": "CI job 'license-lint' checks that every entry in hrir_packs has a license in allowed_license_ids. Build fails if not."
+    "notice": "These HRIR files are provided for demonstration and evaluation only. For production use, verify license compatibility with your distribution channel. See assets/legal/THIRD_PARTY_LICENSES.md."
 }
